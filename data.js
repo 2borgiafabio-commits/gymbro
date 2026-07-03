@@ -1,4 +1,4 @@
-// GymLog — database esercizi + dati iniziali
+// GYMBRO — database esercizi + dati iniziali
 // type: bilanciere | manubri | macchina | cavi | zavorra | corpo | cardio
 // inc: incremento minimo sensato in kg (per i suggerimenti)
 // muscles: primari poi secondari (chiavi della mappa muscolare in art.js)

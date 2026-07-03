@@ -1,6 +1,6 @@
 {
-  "name": "GymLog",
-  "short_name": "GymLog",
+  "name": "GYMBRO",
+  "short_name": "GYMBRO",
   "description": "Il tuo diario di allenamento in palestra",
   "start_url": ".",
   "scope": ".",

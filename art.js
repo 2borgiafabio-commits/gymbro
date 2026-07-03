@@ -1,4 +1,4 @@
-// GymLog — illustrazioni esercizi in stile poster tecnico
+// GYMBRO — illustrazioni esercizi in stile poster tecnico
 // Figura con busto evidenziato in arancione, attrezzi in grigio, due posizioni numerate.
 
 const ART_C = {

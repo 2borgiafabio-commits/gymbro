@@ -1,4 +1,4 @@
-const VERSION = 'gymlog-v3';
+const VERSION = 'gymbro-v4';
 const ASSETS = [
   './',
   './index.html',

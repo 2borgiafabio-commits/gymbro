@@ -1,8 +1,16 @@
-// GymLog — logica applicazione
-/* global EXDB, SEED, exerciseSVG, muscleMapSVG */
+// GYMBRO — logica applicazione
+/* global EXDB, SEED, exerciseSVG, exerciseArt, muscleMapSVG */
 
-const STORE_KEY = 'gymlog.v1';
-const DRAFT_KEY = 'gymlog.draft';
+const STORE_KEY = 'gymbro.v1';
+const DRAFT_KEY = 'gymbro.draft';
+// Migrazione dai vecchi nomi (l'app si chiamava GymLog)
+const OLD_KEYS = { 'gymbro.v1': 'gymlog.v1', 'gymbro.draft': 'gymlog.draft' };
+Object.keys(OLD_KEYS).forEach((k) => {
+  if (!localStorage.getItem(k) && localStorage.getItem(OLD_KEYS[k])) {
+    localStorage.setItem(k, localStorage.getItem(OLD_KEYS[k]));
+    localStorage.removeItem(OLD_KEYS[k]);
+  }
+});
 
 let state = null;
 let draft = null;
@@ -224,7 +232,7 @@ function lastSessionForDay(dayId) {
 
 // --- home ---
 function renderHome() {
-  let h = `<header class="top"><div class="logo">Gym<span>Log</span></div><div class="top-date">${esc(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))}</div></header>`;
+  let h = `<header class="top"><div class="logo">GYM<span>BRO</span></div><div class="top-date">${esc(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))}</div></header>`;
 
   const pend = pendingCheckin();
   if (pend) {
@@ -803,7 +811,7 @@ const App = {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'gymlog-backup-' + todayISO() + '.json';
+    a.download = 'gymbro-backup-' + todayISO() + '.json';
     a.click();
     URL.revokeObjectURL(a.href);
   },
