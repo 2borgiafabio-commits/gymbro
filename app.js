@@ -145,7 +145,7 @@ function suggest(ex) {
   const val = Math.max(0, last.weight + delta);
   const deltaTxt = delta > 0 ? ` (+${fmt(delta)} kg)` : delta < 0 ? ` (−${fmt(-delta)} kg)` : '';
   return {
-    value: val, unit: 'kg', base: last.weight, plusBar: !!last.plusBar,
+    value: val, unit: 'kg', base: last.weight, plusBar: !!last.plusBar, barKg: last.barKg,
     text: `${fmt(last.weight)} kg${last.plusBar ? ' + barra' : ''} il ${dateLabel(last.date)}: ${why.join(', ')}${deltaTxt}`
   };
 }
@@ -316,7 +316,7 @@ function entryValueLabel(e) {
     return parts.join(' · ');
   }
   if (e.seconds != null) return e.seconds + '"';
-  if (e.weight != null) return fmt(e.weight) + ' kg' + (e.plusBar ? ' + barra' : '');
+  if (e.weight != null) return fmt(e.weight) + ' kg' + (e.plusBar ? ' + barra' + (e.barKg != null ? ' da ' + fmt(e.barKg) : '') : '');
   return '—';
 }
 
@@ -373,25 +373,95 @@ function renderSession() {
   return h;
 }
 
-function shareTextForSession(s) {
-  const EMO = { hard: ':(', ok: ':|', easy: ':)' };
-  const OVERALL = { hard: 'distrutto', ok: 'stanco il giusto', easy: 'in forma' };
+// --- immagine PNG della sessione (per WhatsApp) ---
+function _rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function _drawFace(ctx, x, y, r, kind) {
+  const col = FEELINGS[kind].color;
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = r * 0.18; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.28, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.35, y - r * 0.28, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  if (kind === 'easy') ctx.arc(x, y + r * 0.05, r * 0.48, Math.PI * 0.2, Math.PI * 0.8);
+  else if (kind === 'hard') ctx.arc(x, y + r * 0.75, r * 0.48, Math.PI * 1.2, Math.PI * 1.8);
+  else { ctx.moveTo(x - r * 0.4, y + r * 0.4); ctx.lineTo(x + r * 0.4, y + r * 0.4); }
+  ctx.stroke();
+}
+function _fitText(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 3 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+
+function sessionPNGBlob(s) {
+  const FONT = '-apple-system, "Segoe UI", Roboto, sans-serif';
+  const chk = checkinForSession(s.id);
   const LVL = ['nessuna stanchezza', 'leggera stanchezza', 'discreta stanchezza', 'forte stanchezza'];
-  const lines = ['GYMBRO — ' + s.dayName + ' (' + dateLabel(s.date) + ')'];
+  const OVERALL = { hard: 'Distrutto', ok: 'Stanco il giusto', easy: 'In forma' };
+  const W = 1080, headH = 176, rowH = 82, chkH = chk ? 96 : 16, footH = s.overallFeeling ? 108 : 56;
+  const H = headH + chkH + s.entries.length * rowH + footH;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#FC5200'; ctx.fillRect(0, 0, W, headH);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '800 58px ' + FONT;
+  ctx.fillText('GYMBRO', 48, 82);
+  ctx.font = '600 38px ' + FONT;
+  ctx.fillText(s.dayName + ' · ' + dateLabel(s.date), 48, 140);
+
+  let y = headH;
+  if (chk) {
+    ctx.fillStyle = '#F5F5F7'; _rr(ctx, 48, y + 20, W - 96, 60, 16); ctx.fill();
+    ctx.fillStyle = '#6D6D78'; ctx.font = '600 32px ' + FONT;
+    ctx.fillText('Il giorno dopo: ' + LVL[chk.level], 76, y + 62);
+  }
+  y += chkH;
+
   s.entries.forEach((e) => {
     const ex = e.exId ? exOf(e.exId) : null;
-    const label = e.raw || (ex ? ex.name : 'Esercizio');
+    const name = e.raw || (ex ? ex.name : 'Esercizio');
+    const baseline = y + rowH / 2 + 12;
     if (e.skipped) {
-      lines.push(label + ' —> saltato' + (e.reason && PARK_REASONS[e.reason] ? ' (' + PARK_REASONS[e.reason].toLowerCase() + ')' : ''));
-      return;
+      ctx.fillStyle = '#9B9BA6'; ctx.font = '500 34px ' + FONT;
+      ctx.fillText(_fitText(ctx, name, 480), 48, baseline);
+      ctx.textAlign = 'right'; ctx.font = 'italic 500 30px ' + FONT;
+      ctx.fillText('saltato' + (e.reason && PARK_REASONS[e.reason] ? ' · ' + PARK_REASONS[e.reason].toLowerCase() : ''), W - 60, baseline);
+      ctx.textAlign = 'left';
+    } else {
+      ctx.fillStyle = '#242428'; ctx.font = '500 34px ' + FONT;
+      ctx.fillText(_fitText(ctx, name, 470), 48, baseline);
+      ctx.textAlign = 'right'; ctx.font = '800 36px ' + FONT;
+      ctx.fillText(entryValueLabel(e), W - (e.feeling ? 140 : 60), baseline);
+      ctx.textAlign = 'left';
+      if (e.feeling) _drawFace(ctx, W - 90, y + rowH / 2, 27, e.feeling);
     }
-    const val = entryValueLabel(e);
-    lines.push(label + ' —> ' + val + (e.feeling ? ' ' + EMO[e.feeling] : '') + (e.note ? ' [' + e.note + ']' : ''));
+    ctx.strokeStyle = '#ECECF0'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(48, y + rowH); ctx.lineTo(W - 48, y + rowH); ctx.stroke();
+    y += rowH;
   });
-  if (s.overallFeeling) lines.push('Fine sessione: ' + OVERALL[s.overallFeeling]);
-  const chk = checkinForSession(s.id);
-  if (chk) lines.push('Giorno dopo: ' + LVL[chk.level]);
-  return lines.join('\n');
+
+  if (s.overallFeeling) {
+    ctx.fillStyle = '#6D6D78'; ctx.font = '600 32px ' + FONT;
+    ctx.fillText('Fine sessione: ' + OVERALL[s.overallFeeling], 48, y + 66);
+    _drawFace(ctx, W - 90, y + 56, 27, s.overallFeeling);
+  }
+
+  const bin = atob(c.toDataURL('image/png').split(',')[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: 'image/png' });
 }
 
 // --- allenamento ---
@@ -477,8 +547,15 @@ function renderWorkout() {
     h += stepperHTML('Peso usato', startW, 'kg', ex ? ex.inc || 1 : 1, 'weight');
     if (ex && ex.type === 'bilanciere') {
       const pb = en.plusBar == null ? (sug ? sug.plusBar : true) : en.plusBar;
-      const tot = (en.weight == null ? startW : en.weight) + (pb ? barWeight(ex) : 0);
-      h += `<label class="bar-row"><input type="checkbox" ${pb ? 'checked' : ''} onchange="App.togglePlusBar(this.checked)"> il peso indica i dischi, barra esclusa <span class="bar-tot">${pb ? '→ ' + fmt(tot) + ' kg totali' : ''}</span></label>`;
+      const bk = en.barKg != null ? en.barKg : (sug && sug.barKg != null ? sug.barKg : barWeight(ex));
+      const tot = (en.weight == null ? startW : en.weight) + (pb ? bk : 0);
+      h += `<label class="bar-row"><input type="checkbox" ${pb ? 'checked' : ''} onchange="App.togglePlusBar(this.checked)"> il peso indica i dischi, barra esclusa</label>`;
+      if (pb) {
+        h += `<div class="bar-kg-row"><span class="bar-kg-label">Barra da</span>
+          <button class="bar-kg ${bk === 10 ? 'sel' : ''}" onclick="App.setBarKg(10)">10 kg</button>
+          <button class="bar-kg ${bk === 20 ? 'sel' : ''}" onclick="App.setBarKg(20)">20 kg</button>
+          <span class="bar-tot">= ${fmt(tot)} kg totali</span></div>`;
+      }
     }
   }
 
@@ -713,13 +790,17 @@ const App = {
   shareSession(id) {
     const s = state.sessions.find((x) => x.id === id);
     if (!s) return;
-    const text = shareTextForSession(s);
-    if (navigator.share) {
-      navigator.share({ text }).catch(() => {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => alert('Resoconto copiato: incollalo dove vuoi.'));
+    const blob = sessionPNGBlob(s);
+    const fname = 'gymbro-' + s.dayName.toLowerCase().replace(/\s+/g, '-') + '-' + s.date + '.png';
+    const file = new File([blob], fname, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
     } else {
-      prompt('Copia il resoconto:', text);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click();
+      URL.revokeObjectURL(a.href);
     }
   },
 
@@ -783,7 +864,19 @@ const App = {
   togglePlusBar(v) {
     const it = draft.items[draft.idx];
     const en = it.entry;
+    const ex = it.exId ? exOf(it.exId) : null;
+    const sug = ex ? suggest(ex) : null;
     en.plusBar = v;
+    if (en.weight == null) en.weight = sug ? sug.value : 10;
+    if (v && en.barKg == null) en.barKg = (sug && sug.barKg != null) ? sug.barKg : barWeight(ex);
+    saveDraft(); render();
+  },
+
+  setBarKg(v) {
+    const it = draft.items[draft.idx];
+    const en = it.entry;
+    en.barKg = v;
+    if (en.plusBar == null) en.plusBar = true;
     if (en.weight == null) {
       const ex = it.exId ? exOf(it.exId) : null;
       const sug = ex ? suggest(ex) : null;
@@ -813,6 +906,10 @@ const App = {
       const s = ex ? suggest(ex) : null;
       en.weight = s ? s.value : 10;
       if (ex && ex.type === 'bilanciere' && en.plusBar == null) en.plusBar = s ? !!s.plusBar : true;
+    }
+    if (ex && ex.type === 'bilanciere' && en.plusBar && en.barKg == null) {
+      const s = suggest(ex);
+      en.barKg = (s && s.barKg != null) ? s.barKg : barWeight(ex);
     }
     draft.idx += 1;
     saveDraft(); render();

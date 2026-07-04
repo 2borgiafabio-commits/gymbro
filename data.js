@@ -249,7 +249,7 @@ const SEED = {
     planId: 'plan-1', dayId: 'day-1', dayName: 'Giorno 1',
     entries: [
       { exId: 'cardio', minutes: 15, speed: 8.5, incline: 0, feeling: 'hard' },
-      { exId: 'panca-piana', weight: 20, plusBar: true, feeling: 'ok' },
+      { exId: 'panca-piana', weight: 20, plusBar: true, barKg: 20, feeling: 'ok' },
       { exId: 'panca-inclinata-manubri', weight: 8, feeling: 'easy' },
       { exId: 'croci-cavi', weight: 20, feeling: 'hard', note: 'peso non sicuro ("credo")' },
       { exId: 'shoulder-press', weight: 35, feeling: 'ok' },
