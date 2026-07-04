@@ -248,7 +248,7 @@ const SEED = {
     date: '2026-07-02',
     planId: 'plan-1', dayId: 'day-1', dayName: 'Giorno 1',
     entries: [
-      { exId: 'cardio', minutes: 15, speed: 8.5, feeling: 'hard' },
+      { exId: 'cardio', minutes: 15, speed: 8.5, incline: 0, feeling: 'hard' },
       { exId: 'panca-piana', weight: 20, plusBar: true, feeling: 'ok' },
       { exId: 'panca-inclinata-manubri', weight: 8, feeling: 'easy' },
       { exId: 'croci-cavi', weight: 20, feeling: 'hard', note: 'peso non sicuro ("credo")' },

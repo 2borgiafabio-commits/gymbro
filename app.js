@@ -311,6 +311,7 @@ function entryValueLabel(e) {
   if (e.speed != null || e.minutes != null) {
     const parts = [];
     if (e.speed != null) parts.push(fmt(e.speed) + ' km/h');
+    if (e.incline != null) parts.push(fmt(e.incline) + '%');
     if (e.minutes != null) parts.push(e.minutes + '’');
     return parts.join(' · ');
   }
@@ -441,7 +442,9 @@ function renderWorkout() {
   }
 
   if (it.exId === 'cardio') {
+    const lastInc = historyFor('cardio').find((x) => x.incline != null);
     h += stepperHTML('Velocità media', en.speed == null ? (sug ? sug.value : 8) : en.speed, 'km/h', 0.5, 'speed');
+    h += stepperHTML('Inclinazione', en.incline == null ? (lastInc ? lastInc.incline : 0) : en.incline, '%', 0.5, 'incline');
     h += stepperHTML('Minuti', en.minutes == null ? (it.minutes || 15) : en.minutes, 'min', 5, 'minutes');
   } else if (ex && ex.timed) {
     h += stepperHTML('Tenuta migliore', en.seconds == null ? (sug ? sug.value : 30) : en.seconds, 'sec', 5, 'seconds');
@@ -580,7 +583,7 @@ function renderProgress() {
     if (series.length >= 2) h += sparkline(series);
     h += `<div class="hist-list">`;
     hist.slice().reverse().forEach((x) => {
-      const val = ex.type === 'cardio' ? (x.speed != null ? fmt(x.speed) + ' km/h' : '—') : ex.timed ? (x.seconds != null ? x.seconds + '"' : '—') : (x.weight != null ? fmt(x.weight) + ' kg' + (x.plusBar ? ' + barra' : '') : '—');
+      const val = ex.type === 'cardio' ? (x.speed != null ? fmt(x.speed) + ' km/h' + (x.incline != null ? ' · ' + fmt(x.incline) + '%' : '') : '—') : ex.timed ? (x.seconds != null ? x.seconds + '"' : '—') : (x.weight != null ? fmt(x.weight) + ' kg' + (x.plusBar ? ' + barra' : '') : '—');
       h += `<div class="hist-row"><span class="hist-date">${dateLabel(x.date)}</span><span class="hist-val">${val}</span>${x.feeling ? faceSVG(x.feeling, 20) : '<span></span>'}</div>`;
     });
     h += `</div><button class="btn-secondary" onclick="App.sheet('${ex.id}')">Come si fa</button></div>`;
@@ -667,7 +670,7 @@ function renderSheet(exId) {
   if (hist.length) {
     h += `<div class="sheet-sec">Le ultime volte</div><div class="hist-list">`;
     hist.forEach((x) => {
-      const val = ex.type === 'cardio' ? (x.speed != null ? fmt(x.speed) + ' km/h' : '—') : ex.timed ? (x.seconds != null ? x.seconds + '"' : '—') : (x.weight != null ? fmt(x.weight) + ' kg' + (x.plusBar ? ' + barra' : '') : '—');
+      const val = ex.type === 'cardio' ? (x.speed != null ? fmt(x.speed) + ' km/h' + (x.incline != null ? ' · ' + fmt(x.incline) + '%' : '') : '—') : ex.timed ? (x.seconds != null ? x.seconds + '"' : '—') : (x.weight != null ? fmt(x.weight) + ' kg' + (x.plusBar ? ' + barra' : '') : '—');
       h += `<div class="hist-row"><span class="hist-date">${dateLabel(x.date)}</span><span class="hist-val">${val}</span>${x.feeling ? faceSVG(x.feeling, 20) : '<span></span>'}</div>`;
     });
     h += `</div>`;
@@ -722,6 +725,7 @@ const App = {
       const sug = ex ? suggest(ex) : null;
       if (field === 'weight') en.weight = sug ? sug.value : 10;
       else if (field === 'speed') en.speed = sug ? sug.value : 8;
+      else if (field === 'incline') { const li = historyFor('cardio').find((x) => x.incline != null); en.incline = li ? li.incline : 0; }
       else if (field === 'minutes') en.minutes = it.minutes || 15;
       else if (field === 'seconds') en.seconds = sug ? sug.value : 30;
       if (field === 'weight' && ex && ex.type === 'bilanciere' && en.plusBar == null) en.plusBar = sug ? !!sug.plusBar : true;
@@ -765,6 +769,7 @@ const App = {
     if (it.exId === 'cardio') {
       if (en.minutes == null) en.minutes = it.minutes || 15;
       if (en.speed == null) { const s = ex ? suggest(ex) : null; en.speed = s ? s.value : 8; }
+      if (en.incline == null) { const li = historyFor('cardio').find((x) => x.incline != null); en.incline = li ? li.incline : 0; }
     } else if (ex && ex.timed) {
       if (en.seconds == null) { const s = suggest(ex); en.seconds = s ? s.value : 30; }
     } else if (en.weight == null) {
