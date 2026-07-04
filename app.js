@@ -230,6 +230,17 @@ function lastSessionForDay(dayId) {
   return list[0] || null;
 }
 
+// Il giorno che tocca fare: il primo mai fatto, altrimenti quello dopo l'ultima sessione (a rotazione)
+function suggestedDayId() {
+  const plan = activePlan();
+  const done = new Set(state.sessions.filter((s) => s.planId === plan.id).map((s) => s.dayId));
+  const firstNew = plan.days.find((d) => !done.has(d.id));
+  if (firstNew) return firstNew.id;
+  const lastSess = state.sessions.filter((s) => s.planId === plan.id).sort((a, b) => a.date < b.date ? 1 : -1)[0];
+  const i = plan.days.findIndex((d) => d.id === lastSess.dayId);
+  return plan.days[(i + 1) % plan.days.length].id;
+}
+
 // --- home ---
 function renderHome() {
   let h = `<header class="top"><div class="logo">GYM<span>BRO</span></div><div class="top-date">${esc(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))}</div></header>`;
@@ -250,24 +261,30 @@ function renderHome() {
   }
 
   if (draft) {
-    h += `<div class="card resume-card" onclick="App.tab('workout')">
-      <div><div class="card-kicker">Allenamento in corso</div>
-      <div class="resume-title">${esc(draft.dayName)} — esercizio ${draft.idx + 1} di ${draft.items.length}</div></div>
-      <div class="resume-arrow">${ICONS.play}</div>
+    h += `<div class="card resume-card">
+      <div class="resume-main" onclick="App.tab('workout')"><div class="card-kicker">Allenamento in corso</div>
+      <div class="resume-title">${esc(draft.dayName)} — esercizio ${Math.min(draft.idx + 1, draft.items.length)} di ${draft.items.length}</div></div>
+      <div class="resume-actions">
+        <button class="btn-primary" onclick="App.tab('workout')">Riprendi</button>
+        <button class="btn-ghost btn-ghost-dark" onclick="App.discardDraft()">Scarta</button>
+      </div>
     </div>`;
   }
 
   const plan = activePlan();
+  const nextId = draft ? null : suggestedDayId();
   h += `<div class="section-title">Il tuo allenamento <span class="section-sub">${esc(plan.name)}</span></div>`;
   plan.days.forEach((d) => {
     const last = lastSessionForDay(d.id);
     const nEx = d.items.filter((i) => i.exId !== 'cardio').length;
-    h += `<div class="card day-card">
+    const isNext = d.id === nextId;
+    h += `<div class="card day-card ${isNext ? 'day-next' : ''}">
       <div class="day-info" onclick="App.startDay('${d.id}')">
-        <div class="day-name">${esc(d.name)}</div>
-        <div class="day-sub">${esc(d.subtitle || '')} · ${nEx} esercizi${last ? ' · fatto ' + dateLabel(last.date) : ''}</div>
+        <div class="day-name">${esc(d.name)}${isNext ? ' <span class="day-badge">tocca a te</span>' : ''}</div>
+        <div class="day-sub">${esc(d.subtitle || '')} · ${nEx} esercizi</div>
+        ${last ? `<div class="day-done">✓ fatto ${dateLabel(last.date)}</div>` : ''}
       </div>
-      <button class="btn-primary" onclick="App.startDay('${d.id}')">Inizia</button>
+      ${isNext ? `<button class="btn-primary" onclick="App.startDay('${d.id}')">Inizia</button>` : `<button class="btn-secondary" onclick="App.startDay('${d.id}')">${last ? 'Rifai' : 'Inizia'}</button>`}
     </div>`;
   });
 
@@ -622,6 +639,12 @@ const App = {
 
   quitWorkout() {
     if (confirm('Vuoi uscire? L’allenamento resta in pausa e puoi riprenderlo dalla home.')) { currentTab = 'home'; render(); }
+  },
+
+  discardDraft() {
+    if (confirm('Vuoi scartare questo allenamento? I dati inseriti finora andranno persi e non finirà nello storico.')) {
+      draft = null; saveDraft(); render();
+    }
   },
 
   bump(field, delta) {

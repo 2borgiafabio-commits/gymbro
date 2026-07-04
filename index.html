@@ -93,11 +93,20 @@ body.no-scroll { overflow: hidden; }
 }
 .chk-btn:active { border-color: var(--orange); background: var(--orange-pale); }
 
-.resume-card { display: flex; align-items: center; justify-content: space-between; cursor: pointer; background: var(--ink); color: #fff; }
+.resume-card { background: var(--ink); color: #fff; }
 .resume-card .card-kicker { color: #FFB48A; }
+.resume-main { cursor: pointer; }
 .resume-title { font-size: 15px; font-weight: 700; }
-.resume-arrow { width: 34px; height: 34px; color: var(--orange); }
-.resume-arrow svg { width: 100%; height: 100%; }
+.resume-actions { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.btn-ghost-dark { color: #B9B9C2; }
+
+.day-next { border: 2px solid var(--orange); }
+.day-badge {
+  display: inline-block; vertical-align: 2px; margin-left: 6px;
+  background: var(--orange); color: #fff; font-size: 10.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.5px; padding: 2.5px 8px; border-radius: 999px;
+}
+.day-done { font-size: 12.5px; font-weight: 700; color: var(--green); margin-top: 4px; }
 
 .wk-top { align-items: center; }
 .wk-title { font-size: 16px; font-weight: 800; }
