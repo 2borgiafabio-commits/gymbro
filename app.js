@@ -16,6 +16,7 @@ let state = null;
 let draft = null;
 let currentTab = 'home';
 let progressSel = null;
+let sessionSel = null;
 
 // ---------- utilità ----------
 const $ = (sel) => document.querySelector(sel);
@@ -200,7 +201,7 @@ function parseScheda(text) {
 // ---------- rendering ----------
 function render() {
   const view = $('#view');
-  if (currentTab === 'home') view.innerHTML = renderHome();
+  if (currentTab === 'home') view.innerHTML = sessionSel ? renderSession() : renderHome();
   else if (currentTab === 'workout') view.innerHTML = renderWorkout();
   else if (currentTab === 'plans') view.innerHTML = renderPlans();
   else view.innerHTML = renderProgress();
@@ -293,14 +294,78 @@ function renderHome() {
     h += `<div class="section-title">Attività recenti</div>`;
     recent.forEach((s) => {
       const n = s.entries.filter((e) => !e.skipped && e.exId !== 'cardio').length;
-      h += `<div class="card act-card">
+      h += `<div class="card act-card" onclick="App.session('${s.id}')">
         <div class="act-dot"></div>
         <div class="act-main"><div class="act-title">${esc(s.dayName)}</div>
         <div class="act-sub">${dateLabel(s.date)} · ${n} esercizi completati</div></div>
         ${s.overallFeeling ? faceSVG(s.overallFeeling, 26) : ''}
+        <span class="act-chev">›</span>
       </div>`;
     });
   }
+  return h;
+}
+
+// --- dettaglio sessione passata ---
+function entryValueLabel(e) {
+  if (e.speed != null || e.minutes != null) {
+    const parts = [];
+    if (e.speed != null) parts.push(fmt(e.speed) + ' km/h');
+    if (e.minutes != null) parts.push(e.minutes + '’');
+    return parts.join(' · ');
+  }
+  if (e.seconds != null) return e.seconds + '"';
+  if (e.weight != null) return fmt(e.weight) + ' kg' + (e.plusBar ? ' + barra' : '');
+  return '—';
+}
+
+function entryMetric(e) {
+  if (e.speed != null) return e.speed;
+  if (e.seconds != null) return e.seconds;
+  if (e.weight != null) return e.weight;
+  return null;
+}
+
+function renderSession() {
+  const s = state.sessions.find((x) => x.id === sessionSel);
+  if (!s) { sessionSel = null; return renderHome(); }
+  const OVERALL = { hard: 'Distrutto', ok: 'Stanco giusto', easy: 'In forma' };
+  const LVL = ['Nessuna stanchezza', 'Leggera stanchezza', 'Discreta stanchezza', 'Forte stanchezza'];
+  const chk = checkinForSession(s.id);
+
+  let h = `<header class="top"><button class="btn-ghost back" onclick="App.session(null)">← Indietro</button></header>
+  <div class="card">
+    <div class="sess-head">
+      <div><div class="ex-name">${esc(s.dayName)}</div>
+      <div class="day-sub">${dateLabel(s.date)}</div></div>
+      ${s.overallFeeling ? `<div class="sess-overall">${faceSVG(s.overallFeeling, 30)}<span>${OVERALL[s.overallFeeling]}</span></div>` : ''}
+    </div>
+    ${chk ? `<div class="sess-chk">Il giorno dopo: <strong>${LVL[chk.level].toLowerCase()}</strong></div>` : ''}
+    <div class="hist-list">`;
+
+  s.entries.forEach((e) => {
+    const ex = e.exId ? exOf(e.exId) : null;
+    const name = ex ? ex.name : (e.raw || 'Esercizio');
+    const click = ex ? `onclick="App.sheet('${ex.id}')"` : '';
+    if (e.skipped) {
+      h += `<div class="hist-row sess-skip" ${click}><span class="hist-date">${esc(name)}</span><span class="sess-skip-tag">saltato${e.reason && PARK_REASONS[e.reason] ? ' · ' + PARK_REASONS[e.reason].toLowerCase() : ''}</span><span></span></div>`;
+      return;
+    }
+    // confronto con la volta precedente
+    let trend = '';
+    if (e.exId) {
+      const prev = historyFor(e.exId).find((x) => x.date < s.date && entryMetric(x) != null);
+      const cur = entryMetric(e);
+      if (prev && cur != null) {
+        const pv = entryMetric(prev);
+        if (cur > pv) trend = '<span class="trend up">▲</span>';
+        else if (cur < pv) trend = '<span class="trend down">▼</span>';
+      }
+    }
+    h += `<div class="hist-row" ${click}><span class="hist-date">${esc(name)}${e.note ? `<span class="sess-note"> · ${esc(e.note)}</span>` : ''}</span><span class="hist-val">${entryValueLabel(e)} ${trend}</span>${e.feeling ? faceSVG(e.feeling, 20) : '<span></span>'}</div>`;
+  });
+
+  h += `</div><p class="hint">Tocca un esercizio per vedere come si fa e il suo storico.</p></div>`;
   return h;
 }
 
@@ -614,7 +679,9 @@ function renderSheet(exId) {
 
 // ---------- azioni ----------
 const App = {
-  tab(t) { currentTab = t; render(); },
+  tab(t) { currentTab = t; sessionSel = null; render(); },
+
+  session(id) { sessionSel = id; currentTab = 'home'; render(); },
 
   startDay(dayId) {
     if (draft && draft.dayId !== dayId) {
