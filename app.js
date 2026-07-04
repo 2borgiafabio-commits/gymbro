@@ -366,8 +366,32 @@ function renderSession() {
     h += `<div class="hist-row" ${click}><span class="hist-date">${esc(name)}${e.note ? `<span class="sess-note"> · ${esc(e.note)}</span>` : ''}</span><span class="hist-val">${entryValueLabel(e)} ${trend}</span>${e.feeling ? faceSVG(e.feeling, 20) : '<span></span>'}</div>`;
   });
 
-  h += `</div><p class="hint">Tocca un esercizio per vedere come si fa e il suo storico.</p></div>`;
+  h += `</div><p class="hint">Tocca un esercizio per vedere come si fa e il suo storico.</p>
+  <button class="btn-primary btn-big btn-share" onclick="App.shareSession('${s.id}')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px"><path d="M12 3v12"/><path d="M8 6.5 12 3l4 3.5"/><path d="M6 11H5a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 5 21h14a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 19 11h-1"/></svg>Condividi la sessione</button>
+  </div>`;
   return h;
+}
+
+function shareTextForSession(s) {
+  const EMO = { hard: ':(', ok: ':|', easy: ':)' };
+  const OVERALL = { hard: 'distrutto', ok: 'stanco il giusto', easy: 'in forma' };
+  const LVL = ['nessuna stanchezza', 'leggera stanchezza', 'discreta stanchezza', 'forte stanchezza'];
+  const lines = ['GYMBRO — ' + s.dayName + ' (' + dateLabel(s.date) + ')'];
+  s.entries.forEach((e) => {
+    const ex = e.exId ? exOf(e.exId) : null;
+    const label = e.raw || (ex ? ex.name : 'Esercizio');
+    if (e.skipped) {
+      lines.push(label + ' —> saltato' + (e.reason && PARK_REASONS[e.reason] ? ' (' + PARK_REASONS[e.reason].toLowerCase() + ')' : ''));
+      return;
+    }
+    const val = entryValueLabel(e);
+    lines.push(label + ' —> ' + val + (e.feeling ? ' ' + EMO[e.feeling] : '') + (e.note ? ' [' + e.note + ']' : ''));
+  });
+  if (s.overallFeeling) lines.push('Fine sessione: ' + OVERALL[s.overallFeeling]);
+  const chk = checkinForSession(s.id);
+  if (chk) lines.push('Giorno dopo: ' + LVL[chk.level]);
+  return lines.join('\n');
 }
 
 // --- allenamento ---
@@ -685,6 +709,19 @@ const App = {
   tab(t) { currentTab = t; sessionSel = null; render(); },
 
   session(id) { sessionSel = id; currentTab = 'home'; render(); },
+
+  shareSession(id) {
+    const s = state.sessions.find((x) => x.id === id);
+    if (!s) return;
+    const text = shareTextForSession(s);
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => alert('Resoconto copiato: incollalo dove vuoi.'));
+    } else {
+      prompt('Copia il resoconto:', text);
+    }
+  },
 
   startDay(dayId) {
     if (draft && draft.dayId !== dayId) {
