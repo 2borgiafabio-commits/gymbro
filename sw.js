@@ -1,4 +1,4 @@
-const VERSION = 'gymbro-v9';
+const VERSION = 'gymbro-v10';
 const ASSETS = [
   './',
   './index.html',

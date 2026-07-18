@@ -25,6 +25,7 @@ const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString('it-IT');
 const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const dateLabel = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }); };
 const uid = () => 'id-' + Date.now() + '-' + Math.floor(Math.random() * 1e5);
+const fmtSecs = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 const exOf = (id) => EXDB.find((e) => e.id === id) || null;
 
 const FEELINGS = {
@@ -541,6 +542,13 @@ function renderWorkout() {
     h += stepperHTML('Inclinazione', en.incline == null ? (lastInc ? lastInc.incline : 0) : en.incline, '%', 0.5, 'incline');
     h += stepperHTML('Minuti', en.minutes == null ? (it.minutes || 15) : en.minutes, 'min', 5, 'minutes');
   } else if (ex && ex.timed) {
+    const running = !!App._timer;
+    const elapsed = running ? Math.round((Date.now() - App._timer.t0) / 1000) : 0;
+    h += `<div class="timer-box">
+      <div class="timer-display ${running ? 'run' : ''}" id="timer-display">${fmtSecs(elapsed)}</div>
+      <button class="${running ? 'btn-stop' : 'btn-primary'} timer-btn" onclick="App.timerToggle()">${running ? 'Ferma' : 'Avvia timer'}</button>
+      <p class="hint timer-hint">${running ? 'Tieni duro! Quando molli, tocca Ferma.' : 'Quando fermi il timer, salvo qui sotto la tenuta migliore della sessione.'}</p>
+    </div>`;
     h += stepperHTML('Tenuta migliore', en.seconds == null ? (sug ? sug.value : 30) : en.seconds, 'sec', 5, 'seconds');
   } else {
     const startW = en.weight == null ? (sug ? sug.value : 10) : en.weight;
@@ -783,7 +791,40 @@ function renderSheet(exId) {
 
 // ---------- azioni ----------
 const App = {
-  tab(t) { currentTab = t; sessionSel = null; render(); },
+  _timer: null,
+
+  _stopTimer() {
+    if (!App._timer) return;
+    clearInterval(App._timer.iv);
+    if (App._timer.wl) { try { App._timer.wl.release(); } catch (e) {} }
+    App._timer = null;
+  },
+
+  timerToggle() {
+    if (App._timer) {
+      const elapsed = Math.round((Date.now() - App._timer.t0) / 1000);
+      App._stopTimer();
+      const en = draft.items[draft.idx].entry;
+      if (elapsed > 0) en.seconds = Math.max(en.seconds || 0, elapsed);
+      saveDraft(); render();
+    } else {
+      App._timer = {
+        t0: Date.now(),
+        iv: setInterval(() => {
+          const el = document.getElementById('timer-display');
+          if (el && App._timer) el.textContent = fmtSecs(Math.round((Date.now() - App._timer.t0) / 1000));
+        }, 250)
+      };
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request('screen').then((wl) => {
+          if (App._timer) App._timer.wl = wl; else { try { wl.release(); } catch (e) {} }
+        }).catch(() => {});
+      }
+      render();
+    }
+  },
+
+  tab(t) { App._stopTimer(); currentTab = t; sessionSel = null; render(); },
 
   session(id) { sessionSel = id; currentTab = 'home'; render(); },
 
@@ -826,12 +867,12 @@ const App = {
   },
 
   quitWorkout() {
-    if (confirm('Vuoi uscire? L’allenamento resta in pausa e puoi riprenderlo dalla home.')) { currentTab = 'home'; render(); }
+    if (confirm('Vuoi uscire? L’allenamento resta in pausa e puoi riprenderlo dalla home.')) { App._stopTimer(); currentTab = 'home'; render(); }
   },
 
   discardDraft() {
     if (confirm('Vuoi scartare questo allenamento? I dati inseriti finora andranno persi e non finirà nello storico.')) {
-      draft = null; saveDraft(); render();
+      App._stopTimer(); draft = null; saveDraft(); render();
     }
   },
 
@@ -892,6 +933,7 @@ const App = {
   },
 
   doneItem() {
+    App._stopTimer();
     const it = draft.items[draft.idx];
     const en = it.entry;
     if (!en.feeling) return;
@@ -935,6 +977,7 @@ const App = {
 
   park(reason) {
     App.closeSheet();
+    App._stopTimer();
     const it = draft.items[draft.idx];
     if (reason === 'skip') {
       it.entry = { skipped: true };
@@ -947,6 +990,7 @@ const App = {
   },
 
   resumePark(i) {
+    App._stopTimer();
     const it = draft.parked.splice(i, 1)[0];
     draft.items.splice(draft.idx, 0, it);
     saveDraft(); render();
@@ -970,6 +1014,7 @@ const App = {
   overall(f) { draft.overallFeeling = draft.overallFeeling === f ? null : f; saveDraft(); render(); },
 
   finish() {
+    App._stopTimer();
     const entries = draft.items.map((it) => Object.assign({ exId: it.exId, raw: it.raw }, (it.entry && Object.keys(it.entry).length) ? it.entry : { skipped: true }));
     draft.parked.forEach((p) => entries.push({ exId: p.exId, raw: p.raw, skipped: true, reason: p.parkReason }));
     const sess = {
